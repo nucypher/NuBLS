@@ -13,7 +13,7 @@ pub trait ThresholdKey: Sized {
 
     /// The `recover` function returns the re-assembled key given the threshold
     /// `m` fragments.
-    fn recover(fragments: &Vec<Self>) -> Self;
+    fn recover(fragments: &[Self]) -> Self;
 }
 
 /// A trait that describes a signature from a threshold signing protocol.
@@ -24,5 +24,5 @@ pub trait ThresholdSignature: Sized {
     /// threshold amount of signatures.
     /// The fully-assembled signature can be verified by its corresponding
     /// threshold key.
-    fn assemble(fragments: &Vec<Self>) -> Self;
+    fn assemble(fragments: &[Self]) -> Self;
 }

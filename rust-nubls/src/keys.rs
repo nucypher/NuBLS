@@ -1,6 +1,6 @@
 use crate::bls::{Signature, VerificationResult};
 use crate::traits::ThresholdKey;
-use crate::utils::poly_eval;
+use crate::utils::{lambda_coeff, poly_eval};
 
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
@@ -71,13 +71,12 @@ impl From<PrivateKey> for PublicKey {
 /// private keys in threshold protocols.
 impl ThresholdKey for PrivateKey {
     /// Splits the private key into `n` fragments and returns them in a `Vec`
-    /// by using Shamir's Secret Sharing. The `m` value is the threshold
-    /// number of fragments required to re-assemble a secret. An attacker who
-    /// knows `m-1` fragments knows just as much as an attacker who holds no
-    /// shares.
+    /// by using Shamir's Secret Sharing.
     ///
-    /// Presently, we use random fragment indices. This makes recovery of the
-    /// key impossible unless the indices are stored along with the fragments.
+    /// The `m` value is the threshold number of fragments required to
+    /// re-assemble a secret. An attacker who knows `m-1` fragments knows just
+    /// as much as an attacker who holds no shares due to the "perfect secrecy"
+    /// of Shamir's Secret Sharing.
     fn split(&self, m: usize, n: usize) -> Vec<PrivateKey> {
         // First, we randomly generate `m-1` coefficients to the polynomial.
         // Our secret is placed as the first term in the polynomial.
@@ -92,7 +91,7 @@ impl ThresholdKey for PrivateKey {
         // We calculate the fragment index by simply incrementing a Scalar
         // starting at zero. This can be significantly improved, for more info
         // see https://github.com/nucypher/NuBLS/issues/3.
-        let mut fragment_index = Scalar::zero();
+        let mut fragment_index = Scalar::one();
         (0..n)
             .into_iter()
             .map(|_| {
@@ -102,14 +101,33 @@ impl ThresholdKey for PrivateKey {
             .collect()
     }
 
-    /// Recovers a `PrivateKey` from the `fragments` provided.
+    /// Recovers a `PrivateKey` from the `fragments` provided by calculating
+    /// Lagrange basis polynomials.
+    ///
     /// The `fragments` vector must contain the threshold amount (specified as `m`
     /// in the `split` method) to successfully recover the key. Due to the
     /// "perfect secrecy" of Shamir's Secret Sharing, if `fragments` does not
     /// contain the threshold number of fragments (or the wrong fragments), then
     /// this will incorrectly recover the `PrivateKey` without warning.
-    fn recover(fragments: &Vec<PrivateKey>) -> PrivateKey {
-        unimplemented!();
+    fn recover(fragments: &[PrivateKey]) -> PrivateKey {
+        // First, we generate the fragment indices.
+        // This is done by simply incrementing a Scalar starting from one.
+        // This can be significantly improved, for more info see
+        // https://github.com/nucypher/NuBLS/issues/3.
+        let mut index = Scalar::one();
+        let mut fragment_indices = Vec::<Scalar>::with_capacity(fragments.len());
+        for _ in 0..fragments.len() {
+            fragment_indices.push(index);
+            index += Scalar::one();
+        }
+
+        // Then we evaluate the Lagrange basis polynomials and return the 
+        // recovered `PrivateKey`.
+        let mut result = Scalar::zero();
+        for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
+            result += lambda_coeff(fragment_index, &fragment_indices[..]) * fragment.0;
+        }
+        PrivateKey(result)
     }
 }
 
@@ -204,8 +222,10 @@ mod tests {
     #[test]
     fn test_key_split() {
         let priv_a = PrivateKey::random();
-        let a_frags = priv_a.split(2, 3);
+        let n_frags = priv_a.split(2, 3);
+        let m_frags = &n_frags[0..1];
 
-        println!("{:?}", a_frags);
+        let recovered_a = PrivateKey::recover(&m_frags);
+        assert_eq!(recovered_a.0, priv_a.0);
     }
 }
