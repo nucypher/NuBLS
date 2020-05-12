@@ -4,9 +4,11 @@ use getrandom;
 use std::convert::From;
 
 /// A `PublicKey` represents an Affine element of the G_1 group on the BLS12-381 curve.
+#[derive(Debug, Eq, PartialEq)]
 pub struct PublicKey(G1Affine);
 
 /// A `PrivateKey` represents a Scalar element within the order of the BLS12-381 curve.
+#[derive(Debug, Eq, PartialEq)]
 pub struct PrivateKey(Scalar);
 
 impl PrivateKey {
@@ -21,13 +23,13 @@ impl PrivateKey {
 
     /// Returns the corresponding `PublicKey`.
     pub fn public_key(&self) -> PublicKey {
-        unimplemented!();
+        PublicKey((&G1Affine::generator() * &self.0).into())
     }
 }
 
 impl From<PrivateKey> for PublicKey {
     fn from(priv_key: PrivateKey) -> Self {
-        unimplemented!();
+        priv_key.public_key()
     }
 }
 
@@ -39,6 +41,14 @@ mod tests {
         let a = PrivateKey::random();
         let b = PrivateKey::random();
 
-        assert_ne!(a.0, b.0);
+        assert_ne!(a, b);
+    }
+
+    fn test_pubkey() {
+        let priv_a = PrivateKey::random();
+        let pub_a = priv_a.public_key();
+
+        assert_eq!(PublicKey::from(priv_a), pub_a);
+        todo!("Get test vectors for the keys");
     }
 }
