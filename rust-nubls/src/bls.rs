@@ -1,6 +1,6 @@
 use bls12_381::G2Affine;
 
-use crate::keys::PublicKey;
+use crate::keys::{PrivateKey, PublicKey};
 
 use std::convert::From;
 
@@ -20,10 +20,21 @@ pub struct Signature(G2Affine);
 
 impl Signature {
     /// Attempts to verify the signature given a `message` and a `public_key`.
-    /// Returns `true` if the signature is valid and `false` if the signature is invalid.
+    /// Returns a `VerificationResult::Valid` if the `message_element` and `public_key`
+    /// are correct, and a `VerificationResult::Invalid` if they are not.
     ///
     /// The preferred API to verify signatures is in `public_key.verify`.
-    pub(crate) fn verify(&self, message: &[u8], public_key: &PublicKey) -> VerificationResult {
+    ///
+    /// Presently, the API for hashing to the G_2 group of BLS12-381 is not
+    /// implemented (see https://github.com/nucypher/NuBLS/issues/1). Therefore,
+    /// the message must be prehashed before verification and signing.
+    ///
+    /// TODO: Implement hash_to_curve.
+    pub(crate) fn verify(
+        &self,
+        public_key: &PublicKey,
+        message_element: &G2Affine,
+    ) -> VerificationResult {
         unimplemented!();
     }
 }

@@ -1,6 +1,6 @@
 use crate::bls::{Signature, VerificationResult};
 
-use bls12_381::{G1Affine, Scalar};
+use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
 
 use std::convert::From;
@@ -25,19 +25,30 @@ impl PrivateKey {
 
     /// Returns the corresponding `PublicKey`.
     pub fn public_key(&self) -> PublicKey {
+        // The BLS12_381 API doesn't work with additive notation, apparently.
         PublicKey((&G1Affine::generator() * &self.0).into())
     }
 
-    /// Signs a `message` and returns a `Signature`.
-    pub fn sign(&self, message: &[u8]) -> Signature {
+    /// Signs a `message_element` and returns a Signature.
+    ///
+    /// The `sign` API presently only works with messages already mapped to the
+    /// G_2 group on BLS12-381 (see https://github.com/nucypher/NuBLS/issues/1).
+    ///
+    /// TODO: Implement `hash_to_curve` per the IETF hash_to_curve specification.
+    pub fn sign(&self, message_element: &G2Affine) -> Signature {
         unimplemented!();
     }
 }
 
 impl PublicKey {
-    /// Attempts to verify a signature.
-    pub fn verify(&self, message: &[u8], signature: &Signature) -> VerificationResult {
-        signature.verify(message, self)
+    /// Attempts to verify a signature given a `message_element` and a `signature`.
+    ///
+    /// The `verify` API presently only works with messages already mapped to the
+    /// G_2 group on BLS12-381 (see https://github.com/nucypher/NuBLS/issues/1).
+    ///
+    /// TODO: Implement `hash_to_curve` per the IETF hash_to_curve specification.
+    pub fn verify(&self, message_element: &G2Affine, signature: &Signature) -> VerificationResult {
+        signature.verify(self, message_element)
     }
 }
 
