@@ -1,4 +1,5 @@
 use crate::bls::{Signature, VerificationResult};
+use crate::traits::ThresholdKey;
 
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
@@ -55,6 +56,34 @@ impl PublicKey {
 impl From<PrivateKey> for PublicKey {
     fn from(priv_key: PrivateKey) -> Self {
         priv_key.public_key()
+    }
+}
+
+/// Implements Shamir's Secret Sharing (SSS) on `PrivateKey` for use in Threshold
+/// BLS Signatures.
+///
+/// SSS has the property of "perfect secrecy" which means that an attacker who
+/// holds `m-1` shares of a split key knows nothing; as much info as an attacker
+/// who holds none of the shares. These fragments are used as separate, independent
+/// private keys in threshold protocols.
+impl ThresholdKey for PrivateKey {
+    /// Splits the private key into `n` fragments and returns them in a `Vec`
+    /// by using Shamir's Secret Sharing. The `m` value is the threshold
+    /// number of fragments required to re-assemble a secret. An attacker who
+    /// knows `m-1` fragments knows just as much as an attacker who holds no
+    /// shares.
+    fn split(&self, m: u8, n: u8) -> &Vec<PrivateKey> {
+        unimplemented!();
+    }
+
+    /// Recovers a `PrivateKey` from the `fragments` provided.
+    /// The `fragments` vector must contain the threshold amount (specified as `m`
+    /// in the `split` method) to successfully recover the key. Due to the
+    /// "perfect secrecy" of Shamir's Secret Sharing, if `fragments` does not
+    /// contain the threshold number of fragments (or the wrong fragments), then
+    /// this will incorrectly recover the `PrivateKey` without warning.
+    fn recover(fragments: &Vec<PrivateKey>) -> PrivateKey {
+        unimplemented!();
     }
 }
 
