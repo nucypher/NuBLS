@@ -1,3 +1,5 @@
+use crate::bls::{Signature, VerificationResult};
+
 use bls12_381::{G1Affine, Scalar};
 use getrandom;
 
@@ -17,13 +19,25 @@ impl PrivateKey {
         let mut key_bytes = [0u8; 64];
         match getrandom::getrandom(&mut key_bytes) {
             Ok(_) => return PrivateKey(Scalar::from_bytes_wide(&key_bytes)),
-            Err(error) => panic!("Error while generating a random key: {:?}", error),
+            Err(err) => panic!("Error while generating a random key: {:?}", err),
         };
     }
 
     /// Returns the corresponding `PublicKey`.
     pub fn public_key(&self) -> PublicKey {
         PublicKey((&G1Affine::generator() * &self.0).into())
+    }
+
+    /// Signs a `message` and returns a `Signature`.
+    pub fn sign(&self, message: &[u8]) -> Signature {
+        unimplemented!();
+    }
+}
+
+impl PublicKey {
+    /// Attempts to verify a signature.
+    pub fn verify(&self, message: &[u8], signature: &Signature) -> VerificationResult {
+        signature.verify(message, self)
     }
 }
 
