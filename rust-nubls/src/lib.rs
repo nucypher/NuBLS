@@ -1,4 +1,5 @@
 extern crate bls12_381;
+extern crate getrandom;
 
 mod bls;
 mod keys;
