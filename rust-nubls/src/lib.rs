@@ -4,6 +4,7 @@ extern crate getrandom;
 mod bls;
 mod keys;
 mod traits;
+mod utils;
 
 pub use bls::Signature;
 pub use keys::{PrivateKey, PublicKey};

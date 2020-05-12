@@ -9,7 +9,7 @@ pub trait ThresholdKey: Sized {
     /// a threshold of `m` fragments required to re-assemble the full key.
     ///
     /// Returns the `n` fragments in a `Vec`.
-    fn split(&self, m: u8, n: u8) -> &Vec<Self>;
+    fn split(&self, m: usize, n: usize) -> Vec<Self>;
 
     /// The `recover` function returns the re-assembled key given the threshold
     /// `m` fragments.

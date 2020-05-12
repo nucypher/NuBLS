@@ -1,5 +1,6 @@
 use crate::bls::{Signature, VerificationResult};
 use crate::traits::ThresholdKey;
+use crate::utils::poly_eval;
 
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
@@ -24,13 +25,13 @@ impl PrivateKey {
         };
     }
 
-    /// Returns the corresponding `PublicKey`.
+    /// Returns the corresponding `PublicKey` of the `PrivateKey`.
     pub fn public_key(&self) -> PublicKey {
         // The BLS12_381 API doesn't work with additive notation, apparently.
         PublicKey((&G1Affine::generator() * &self.0).into())
     }
 
-    /// Signs a `message_element` and returns a Signature.
+    /// Signs a `message_element` and returns a `Signature`.
     ///
     /// The `sign` API presently only works with messages already mapped to the
     /// G_2 group on BLS12-381 (see https://github.com/nucypher/NuBLS/issues/1).
@@ -53,6 +54,8 @@ impl PublicKey {
     }
 }
 
+/// Allows the ability to use `std::convert::From` to get a `PublicKey` from the
+/// corresponding `PrivateKey`.
 impl From<PrivateKey> for PublicKey {
     fn from(priv_key: PrivateKey) -> Self {
         priv_key.public_key()
@@ -72,8 +75,31 @@ impl ThresholdKey for PrivateKey {
     /// number of fragments required to re-assemble a secret. An attacker who
     /// knows `m-1` fragments knows just as much as an attacker who holds no
     /// shares.
-    fn split(&self, m: u8, n: u8) -> &Vec<PrivateKey> {
-        unimplemented!();
+    ///
+    /// Presently, we use random fragment indices. This makes recovery of the
+    /// key impossible unless the indices are stored along with the fragments.
+    fn split(&self, m: usize, n: usize) -> Vec<PrivateKey> {
+        // First, we randomly generate `m-1` coefficients to the polynomial.
+        // Our secret is placed as the first term in the polynomial.
+        let mut coeffs = Vec::<Scalar>::with_capacity(m);
+        coeffs.push(self.0);
+        for _ in 1..m {
+            coeffs.push(PrivateKey::random().0);
+        }
+
+        // Then we evaluate the polynomial `n` times using Horner's method and
+        // return the `collect`ed `Vector`.
+        // We calculate the fragment index by simply incrementing a Scalar
+        // starting at zero. This can be significantly improved, for more info
+        // see https://github.com/nucypher/NuBLS/issues/3.
+        let mut fragment_index = Scalar::zero();
+        (0..n)
+            .into_iter()
+            .map(|_| {
+                fragment_index += Scalar::one();
+                return PrivateKey(poly_eval(&coeffs[..], &fragment_index));
+            })
+            .collect()
     }
 
     /// Recovers a `PrivateKey` from the `fragments` provided.
@@ -173,5 +199,13 @@ mod tests {
             "Invalid message!",
             handle_signature_verification(&not_verified)
         );
+    }
+
+    #[test]
+    fn test_key_split() {
+        let priv_a = PrivateKey::random();
+        let a_frags = priv_a.split(2, 3);
+
+        println!("{:?}", a_frags);
     }
 }
