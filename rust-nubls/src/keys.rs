@@ -91,14 +91,13 @@ impl ThresholdKey for PrivateKey {
         // We calculate the fragment index by simply incrementing a Scalar
         // starting at zero. This can be significantly improved, for more info
         // see https://github.com/nucypher/NuBLS/issues/3.
-        let mut fragment_index = Scalar::one();
-        (0..n)
-            .into_iter()
-            .map(|_| {
-                fragment_index += Scalar::one();
-                return PrivateKey(poly_eval(&coeffs[..], &fragment_index));
-            })
-            .collect()
+        let mut fragment_index = Scalar::zero();
+        let mut fragments = Vec::<PrivateKey>::with_capacity(n);
+        for _ in 0..n {
+            fragment_index += Scalar::one();
+            fragments.push(PrivateKey(poly_eval(&coeffs[..], &fragment_index)));
+        }
+        fragments
     }
 
     /// Recovers a `PrivateKey` from the `fragments` provided by calculating
@@ -121,7 +120,7 @@ impl ThresholdKey for PrivateKey {
             index += Scalar::one();
         }
 
-        // Then we evaluate the Lagrange basis polynomials and return the 
+        // Then we evaluate the Lagrange basis polynomials and return the
         // recovered `PrivateKey`.
         let mut result = Scalar::zero();
         for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
@@ -220,12 +219,26 @@ mod tests {
     }
 
     #[test]
-    fn test_key_split() {
+    fn test_key_split_3_of_5() {
         let priv_a = PrivateKey::random();
-        let n_frags = priv_a.split(2, 3);
-        let m_frags = &n_frags[0..1];
+        let n_frags = priv_a.split(3, 5);
+        let m_frags = &n_frags[0..3];
 
         let recovered_a = PrivateKey::recover(&m_frags);
-        assert_eq!(recovered_a.0, priv_a.0);
+        assert_eq!(recovered_a, priv_a);
+    }
+
+    // Ignoring this test for now because it fails.
+    // We need to store share indices with the fragments so that
+    // we can properly recover the fragment.
+    #[test]
+    #[ignore]
+    fn test_unordered_index_key_recovery() {
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+        let m_frags = &n_frags[2..5];
+
+        let recovered_a = PrivateKey::recover(&m_frags);
+        assert_eq!(recovered_a, priv_a);
     }
 }
