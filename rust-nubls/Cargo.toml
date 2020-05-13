@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies.bls12_381]
 version = "0.1.1"
+features = ["nightly", "endo"]
 
 [dependencies.getrandom]
 version = "0.1"
