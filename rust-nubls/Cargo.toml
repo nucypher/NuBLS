@@ -1,5 +1,5 @@
 [package]
-name = "rust-nubls"
+name = "nubls"
 version = "0.1.0"
 authors = ["tuxxy <me@johnpacific.com>"]
 edition = "2018"
