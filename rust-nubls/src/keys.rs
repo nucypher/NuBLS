@@ -156,7 +156,7 @@ mod tests {
         let priv_a = PrivateKey::random();
         let pub_a = priv_a.public_key();
 
-        // Generate and sign a random message to sign in G_2.
+        // Generate and sign a random message in G_2.
         let rand = PrivateKey::random();
         let msg = G2Affine::from(G2Affine::generator() * &rand.0);
 
@@ -240,5 +240,37 @@ mod tests {
 
         let recovered_a = PrivateKey::recover(&m_frags);
         assert_eq!(recovered_a, priv_a);
+    }
+
+    #[test]
+    fn test_threshold_signature_3_of_5() {
+        use crate::traits::ThresholdSignature;
+
+        // Split the private key into five fragments, one for each Signer.
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+
+        // Generate a random message in G_2
+        let rand = PrivateKey::random();
+        let msg = G2Affine::from(G2Affine::generator() * &rand.0);
+
+        // Get three signatures on the `msg` from each Signer
+        let sig_1 = n_frags[0].sign(&msg);
+        let sig_2 = n_frags[1].sign(&msg);
+        let sig_3 = n_frags[2].sign(&msg);
+
+        // Place them into a vector and assemble the full signature
+        let sig_frags = vec![sig_1, sig_2, sig_3];
+        let full_sig = Signature::assemble(&sig_frags[..]);
+
+        // Sign the same data with the unsplit key to verify correctness
+        // BLS is a deterministic signature, so we can simplycheck that the
+        // two signatures are identical.
+        let msg_sig = priv_a.sign(&msg);
+        assert_eq!(msg_sig, full_sig);
+
+        // Check that the signature verifies
+        let pub_a = priv_a.public_key();
+        assert_eq!(pub_a.verify(&msg, &full_sig), VerificationResult::Valid);
     }
 }

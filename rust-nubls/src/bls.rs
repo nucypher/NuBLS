@@ -1,7 +1,8 @@
-use bls12_381::{pairing, G1Affine, G2Affine};
+use bls12_381::{pairing, G1Affine, G2Affine, G2Projective, Scalar};
 
 use crate::keys::{PrivateKey, PublicKey};
 use crate::traits::ThresholdSignature;
+use crate::utils::lambda_coeff;
 
 use std::convert::From;
 
@@ -73,7 +74,25 @@ impl ThresholdSignature for Signature {
     ///
     /// This calculates the final signature by using Lagrange basis polynomials.
     fn assemble(fragments: &[Signature]) -> Signature {
-        unimplemented!()
+        // First, we generate the fragment indices.
+        // This is done by simply incrementing a Scalar starting from one.
+        // This can be significantly improved, for more info see
+        // https://github.com/nucypher/NuBLS/issues/3.
+        let mut index = Scalar::one();
+        let mut fragment_indices = Vec::<Scalar>::with_capacity(fragments.len());
+        for _ in 0..fragments.len() {
+            fragment_indices.push(index);
+            index += Scalar::one();
+        }
+
+        // Then we evaluate the lagrange basis polynomials and assemble the 
+        // full `Signature`.
+        let mut result = G2Projective::identity();
+        for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
+            // The BLS12_381 API doesn't use additive notation, apparently.
+            result += fragment.0 * lambda_coeff(fragment_index, &fragment_indices[..]);
+        }
+        Signature(result.into())
     }
 }
 
