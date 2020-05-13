@@ -1,6 +1,7 @@
 use bls12_381::{pairing, G1Affine, G2Affine};
 
 use crate::keys::{PrivateKey, PublicKey};
+use crate::traits::ThresholdSignature;
 
 use std::convert::From;
 
@@ -55,6 +56,24 @@ impl Signature {
         let c_2 = pairing(&G1Affine::generator(), &self.0);
 
         VerificationResult::from(c_1 == c_2)
+    }
+}
+
+/// Implements Threshold BLS signatures on `Signature`.
+///
+/// We use Shamir's Secret Sharing scheme to share `n` fragments of a `PrivateKey`
+/// where `m` fragments are needed to recover it.
+/// For BLS threshold signatures, this translates to needing `m` signatures of
+/// identical data to assemble the final `Signature`.
+impl ThresholdSignature for Signature {
+    /// Assembles a `Signature` from collected signature `fragments`.
+    ///
+    /// Note: The data signed by each of the fragment signatures must be identical,
+    /// or else the assembled `Signature` will be invalid.
+    ///
+    /// This calculates the final signature by using Lagrange basis polynomials.
+    fn assemble(fragments: &[Signature]) -> Signature {
+        unimplemented!()
     }
 }
 
