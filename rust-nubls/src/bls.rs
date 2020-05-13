@@ -85,7 +85,7 @@ impl ThresholdSignature for Signature {
             index += Scalar::one();
         }
 
-        // Then we evaluate the lagrange basis polynomials and assemble the 
+        // Then we evaluate the lagrange basis polynomials and assemble the
         // full `Signature`.
         let mut result = G2Projective::identity();
         for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
