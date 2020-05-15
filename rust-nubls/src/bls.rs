@@ -58,6 +58,17 @@ impl Signature {
 
         VerificationResult::from(c_1 == c_2)
     }
+
+    /// Serializes the `Signature` to an array of 96 bytes.
+    pub fn to_bytes(&self) -> [u8; 96] {
+        self.0.to_compressed()
+    }
+
+    /// Deserializes from a `&[u8; 96]` to a `Signature`.
+    /// This will panic if the input is not valid.
+    pub fn from_bytes(bytes: &[u8; 96]) -> Signature {
+        Signature(G2Affine::from_compressed(bytes).unwrap())
+    }
 }
 
 /// Implements Threshold BLS signatures on `Signature`.

@@ -61,6 +61,19 @@ impl PrivateKey {
             inner: PrivateKeyStub::recover(&f[..]),
         })
     }
+
+    #[classmethod]
+    pub fn from_bytes(_cls: &PyType, bytes: &PyBytes) -> PyResult<PrivateKey> {
+        let mut key = [0u8; 32];
+        key.copy_from_slice(bytes.as_bytes());
+        Ok(PrivateKey {
+            inner: PrivateKeyStub::from_bytes(&key),
+        })
+    }
+
+    pub fn to_bytes<'p>(&self, py: Python<'p>) -> PyResult<&'p PyBytes> {
+        Ok(&PyBytes::new(py, &self.inner.to_bytes()[..]))
+    }
 }
 
 #[pymethods]
@@ -78,5 +91,18 @@ impl PublicKey {
                 Err(PyErr::new::<InvalidSignature, _>("Signature is not valid!"))
             }
         }
+    }
+
+    #[classmethod]
+    pub fn from_bytes(_cls: &PyType, bytes: &PyBytes) -> PyResult<PublicKey> {
+        let mut key = [0u8; 48];
+        key.copy_from_slice(bytes.as_bytes());
+        Ok(PublicKey {
+            inner: PublicKeyStub::from_bytes(&key),
+        })
+    }
+
+    pub fn to_bytes<'p>(&self, py: Python<'p>) -> PyResult<&'p PyBytes> {
+        Ok(&PyBytes::new(py, &self.inner.to_bytes()[..]))
     }
 }

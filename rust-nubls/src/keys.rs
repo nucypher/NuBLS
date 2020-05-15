@@ -43,6 +43,17 @@ impl PrivateKey {
     pub fn sign(&self, message_element: &G2Affine) -> Signature {
         Signature::new(self, message_element)
     }
+
+    /// Serializes the `PrivateKey` to an array of 32 bytes.
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+
+    /// Deserializes from a `&[u8; 32]` to a `PrivateKey`.
+    /// This will panic if the input is not valid.
+    pub fn from_bytes(bytes: &[u8; 32]) -> PrivateKey {
+        PrivateKey(Scalar::from_bytes(bytes).unwrap())
+    }
 }
 
 impl PublicKey {
@@ -54,6 +65,17 @@ impl PublicKey {
     /// TODO: Implement `hash_to_curve` per the IETF hash_to_curve specification.
     pub fn verify(&self, message_element: &G2Affine, signature: &Signature) -> VerificationResult {
         signature.verify(self, message_element)
+    }
+
+    /// Serializes the `PublicKey` to an array of 48 bytes.
+    pub fn to_bytes(&self) -> [u8; 48] {
+        self.0.to_compressed()
+    }
+
+    /// Deserializes from a `&[u8; 48]` to a `PublicKey`.
+    /// This will panic if the input is not valid.
+    pub fn from_bytes(bytes: &[u8; 48]) -> PublicKey {
+        PublicKey(G1Affine::from_compressed(bytes).unwrap())
     }
 }
 
