@@ -4,8 +4,6 @@ use crate::keys::{PrivateKey, PublicKey};
 use crate::traits::ThresholdSignature;
 use crate::utils::lambda_coeff;
 
-use std::convert::From;
-
 /// This type represents the output of a Signature verification.
 ///
 /// By representing signature verification in an `enum` like this, we are able
