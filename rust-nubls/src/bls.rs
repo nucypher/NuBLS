@@ -19,7 +19,7 @@ pub enum VerificationResult {
 }
 
 /// A `Signature` is an Affine element of the G_2 group on the BLS12-381 curve.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct Signature(G2Affine);
 
 impl Signature {
