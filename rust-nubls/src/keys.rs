@@ -5,14 +5,17 @@ use crate::utils::{lambda_coeff, poly_eval};
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
 
+#[cfg(feature = "py-ffi")]
+use pyo3::prelude::*;
+
 use std::convert::From;
 
 /// A `PublicKey` represents an Affine element of the G_1 group on the BLS12-381 curve.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct PublicKey(pub(crate) G1Affine);
 
 /// A `PrivateKey` represents a Scalar element within the order of the BLS12-381 curve.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct PrivateKey(pub(crate) Scalar);
 
 impl PrivateKey {
