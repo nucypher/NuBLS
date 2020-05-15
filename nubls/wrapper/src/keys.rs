@@ -1,9 +1,11 @@
+use crate::bls::{InvalidSignature, Signature};
 use bls12_381::G2Affine;
 use nubls::ThresholdKey;
-use nubls::{PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub};
+use nubls::{PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub, VerificationResult};
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyType};
+use pyo3::PyErr;
 
 #[pyclass]
 pub struct PublicKey {
@@ -31,12 +33,12 @@ impl PrivateKey {
     }
 
     // TODO: Finish implementation of `Signature`.
-    pub fn sign(&self, message: &PyBytes) -> PyResult<()> {
+    pub fn sign(&self, message: &PyBytes) -> PyResult<Signature> {
         let mut msg = [0u8; 96];
         msg.copy_from_slice(message.as_bytes());
-        let msg_point = G2Affine::from_compressed(&msg).unwrap();
-        let sig = self.inner.sign(&msg_point);
-        Ok(())
+        Ok(Signature {
+            inner: self.inner.sign(&G2Affine::from_compressed(&msg).unwrap()),
+        })
     }
 
     pub fn split(&self, m: usize, n: usize) -> PyResult<Vec<PrivateKey>> {
@@ -54,9 +56,26 @@ impl PrivateKey {
             .into_iter()
             .map(|fragment| fragment.inner)
             .collect();
-        Ok(PrivateKey { inner: PrivateKeyStub::recover(&f[..]) })
+        Ok(PrivateKey {
+            inner: PrivateKeyStub::recover(&f[..]),
+        })
     }
 }
 
 #[pymethods]
-impl PublicKey {}
+impl PublicKey {
+    pub fn verify(&self, message: &PyBytes, signature: &Signature) -> PyResult<bool> {
+        let mut msg = [0u8; 96];
+        msg.copy_from_slice(message.as_bytes());
+
+        match self
+            .inner
+            .verify(&G2Affine::from_compressed(&msg).unwrap(), &signature.inner)
+        {
+            VerificationResult::Valid => Ok(true),
+            VerificationResult::Invalid => {
+                Err(PyErr::new::<InvalidSignature, _>("Signature is not valid!"))
+            }
+        }
+    }
+}

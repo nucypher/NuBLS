@@ -1,12 +1,16 @@
 use nubls::Signature as SignatureStub;
 use nubls::ThresholdSignature;
 
+use pyo3::create_exception;
+use pyo3::exceptions::Exception;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
+create_exception!(nubls_wrapper, InvalidSignature, Exception);
+
 #[pyclass]
 pub struct Signature {
-    inner: SignatureStub,
+    pub(crate) inner: SignatureStub,
 }
 
 #[pymethods]
@@ -17,6 +21,8 @@ impl Signature {
             .into_iter()
             .map(|fragment| fragment.inner)
             .collect();
-        Ok(Signature { inner: SignatureStub::assemble(&f[..]) })
+        Ok(Signature {
+            inner: SignatureStub::assemble(&f[..]),
+        })
     }
 }

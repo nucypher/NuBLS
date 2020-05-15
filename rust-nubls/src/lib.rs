@@ -6,6 +6,6 @@ mod keys;
 mod traits;
 mod utils;
 
-pub use bls::Signature;
+pub use bls::{Signature, VerificationResult};
 pub use keys::{PrivateKey, PublicKey};
 pub use traits::{ThresholdKey, ThresholdSignature};
