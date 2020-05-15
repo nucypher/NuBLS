@@ -69,10 +69,10 @@ impl PublicKey {
         let mut msg = [0u8; 96];
         msg.copy_from_slice(message.as_bytes());
 
-        match self
+        let res = self
             .inner
-            .verify(&G2Affine::from_compressed(&msg).unwrap(), &signature.inner)
-        {
+            .verify(&G2Affine::from_compressed(&msg).unwrap(), &signature.inner);
+        match res {
             VerificationResult::Valid => Ok(true),
             VerificationResult::Invalid => {
                 Err(PyErr::new::<InvalidSignature, _>("Signature is not valid!"))
