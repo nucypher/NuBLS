@@ -1,7 +1,8 @@
 use crate::bls::{InvalidSignature, Signature};
 use bls12_381::G2Affine;
-use nubls::ThresholdKey;
-use nubls::{PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub, VerificationResult};
+use nubls::{
+    PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub, ThresholdKey, VerificationResult,
+};
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyType};
