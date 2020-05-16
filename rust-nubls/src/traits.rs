@@ -14,6 +14,10 @@ pub trait ThresholdKey: Sized {
     /// The `recover` function returns the re-assembled key given the threshold
     /// `m` fragments.
     fn recover(fragments: &[Self]) -> Self;
+
+    /// The `is_fragment` method returns a `bool` when the `PrivateKey` is
+    /// used for a threshold computation.
+    fn is_fragment(&self) -> bool;
 }
 
 /// A trait that describes a signature from a threshold signing protocol.
@@ -25,4 +29,8 @@ pub trait ThresholdSignature: Sized {
     /// The fully-assembled signature can be verified by its corresponding
     /// threshold key.
     fn assemble(fragments: &[Self]) -> Self;
+
+    /// The `is_fragment` method returns a `bool` when the `PrivateKey` is
+    /// used for a threshold computation.
+    fn is_fragment(&self) -> bool;
 }

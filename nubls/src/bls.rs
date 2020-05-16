@@ -25,16 +25,26 @@ impl Signature {
         })
     }
 
+    pub fn is_fragment(&self) -> PyResult<bool> {
+        Ok(self.inner.is_fragment())
+    }
+
     #[classmethod]
     pub fn from_bytes(_cls: &PyType, bytes: &PyBytes) -> PyResult<Signature> {
-        let mut sig = [0u8; 96];
-        sig.copy_from_slice(bytes.as_bytes());
         Ok(Signature {
-            inner: SignatureStub::from_bytes(&sig),
+            inner: SignatureStub::from_bytes(&bytes.as_bytes()[..]),
         })
     }
 
     pub fn to_bytes<'p>(&self, py: Python<'p>) -> PyResult<&'p PyBytes> {
-        Ok(&PyBytes::new(py, &self.inner.to_bytes()[..]))
+        if !self.inner.is_fragment() {
+            let mut buff = [0u8; 96];
+            self.inner.to_bytes(&mut buff);
+            Ok(&PyBytes::new(py, &buff))
+        } else {
+            let mut buff = [0u8; 128];
+            self.inner.to_bytes(&mut buff);
+            Ok(&PyBytes::new(py, &buff))
+        }
     }
 }

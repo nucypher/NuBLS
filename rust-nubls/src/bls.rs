@@ -4,6 +4,8 @@ use crate::keys::{PrivateKey, PublicKey};
 use crate::traits::ThresholdSignature;
 use crate::utils::lambda_coeff;
 
+const G2_POINT_BYTES_LENGTH: usize = 96;
+
 /// This type represents the output of a Signature verification.
 ///
 /// By representing signature verification in an `enum` like this, we are able
@@ -17,8 +19,9 @@ pub enum VerificationResult {
 }
 
 /// A `Signature` is an Affine element of the G_2 group on the BLS12-381 curve.
+/// We have an `Option<Scalar>` field for a Fragment ID in the case of Threshold signatures.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct Signature(G2Affine);
+pub struct Signature(G2Affine, Option<Scalar>);
 
 impl Signature {
     /// Creates a `Signature` and returns it by signing the `message_element`
@@ -32,7 +35,7 @@ impl Signature {
     ///
     /// TODO: Implement hash_to_curve
     pub(crate) fn new(private_key: &PrivateKey, message_element: &G2Affine) -> Signature {
-        Signature((message_element * &private_key.0).into())
+        Signature((message_element * &private_key.0).into(), private_key.1)
     }
 
     /// Attempts to verify the signature given a `message_element` and a `public_key`.
@@ -57,15 +60,55 @@ impl Signature {
         VerificationResult::from(c_1 == c_2)
     }
 
-    /// Serializes the `Signature` to an array of 96 bytes.
-    pub fn to_bytes(&self) -> [u8; 96] {
-        self.0.to_compressed()
+    /// Serializes the `Signature` by filling a buffer passed as an argument.
+    /// If the buffer is not big enough, this method will panic.
+    ///
+    /// A `Signature` can be serialized in two ways:
+    ///  1. 96 bytes -- This is the case when a `Signature` is _not_ a fragment
+    ///  to a threshold signature.
+    ///
+    ///  2. 128 bytes -- This is the case when a `Signature` _is_ a fragment
+    ///  to a threshold signature. This allows us to store its fragment ID for
+    ///  Shamir's Secret Sharing.
+    ///
+    ///  Note: This serialization will probably change in the future.
+    ///  See https://github.com/nucypher/NuBLS/issues/3
+    pub fn to_bytes(&self, buff: &mut [u8]) {
+        buff[0..96].copy_from_slice(&self.0.to_compressed()[..]);
+        if let Some(fragment_index) = self.1 {
+            buff[96..128].copy_from_slice(&fragment_index.to_bytes()[..]);
+        }
     }
 
     /// Deserializes from a `&[u8; 96]` to a `Signature`.
-    /// This will panic if the input is not valid.
-    pub fn from_bytes(bytes: &[u8; 96]) -> Signature {
-        Signature(G2Affine::from_compressed(bytes).unwrap())
+    /// This will panic if the input is not canonical.
+    ///
+    /// A `Signature` can be serialized in two ways:
+    ///  1. 96 bytes -- This is the case when a `Signature` is _not_ a fragment
+    ///  to a threshold signature.
+    ///
+    ///  2. 128 bytes -- This is the case when a `Signature` _is_ a fragment
+    ///  to a threshold signature. This allows us to store its fragment ID for
+    ///  Shamir's Secret Sharing.
+    ///
+    ///  Note: This serialization will probably change in the future.
+    ///  See https://github.com/nucypher/NuBLS/issues/3
+    pub fn from_bytes(bytes: &[u8]) -> Signature {
+        let mut point_bytes = [0u8; 96];
+        let fragment_index: Option<Scalar>;
+        if bytes.len() == G2_POINT_BYTES_LENGTH {
+            point_bytes.copy_from_slice(&bytes);
+            fragment_index = None
+        } else {
+            let mut index_bytes = [0u8; 32];
+            point_bytes.copy_from_slice(&bytes[0..G2_POINT_BYTES_LENGTH]);
+            index_bytes.copy_from_slice(&bytes[G2_POINT_BYTES_LENGTH..128]);
+            fragment_index = Some(Scalar::from_bytes(&index_bytes).unwrap());
+        }
+        Signature(
+            G2Affine::from_compressed(&point_bytes).unwrap(),
+            fragment_index,
+        )
     }
 }
 
@@ -84,24 +127,34 @@ impl ThresholdSignature for Signature {
     /// This calculates the final signature by using Lagrange basis polynomials.
     fn assemble(fragments: &[Signature]) -> Signature {
         // First, we generate the fragment indices.
-        // This is done by simply incrementing a Scalar starting from one.
+        // We create a buffer to hold fragment indices of size 256 because
+        // our limit to fragments is 256.
         // This can be significantly improved, for more info see
         // https://github.com/nucypher/NuBLS/issues/3.
-        let mut index = Scalar::one();
-        let mut fragment_indices = Vec::<Scalar>::with_capacity(fragments.len());
-        for _ in 0..fragments.len() {
-            fragment_indices.push(index);
-            index += Scalar::one();
+        let mut fragment_indices = [Scalar::zero(); 256];
+        for i in 0..fragments.len() {
+            fragment_indices[i] = fragments[i].1.unwrap();
         }
 
         // Then we evaluate the lagrange basis polynomials and assemble the
         // full `Signature`.
+        // Note: we limit the `fragments_indices` slice to the length of the 
+        // `fragments` slice.
         let mut result = G2Projective::identity();
-        for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
+        for fragment in fragments.iter() {
             // The BLS12_381 API doesn't use additive notation, apparently.
-            result += fragment.0 * lambda_coeff(fragment_index, &fragment_indices[..]);
+            result +=
+                fragment.0 * lambda_coeff(&fragment.1.unwrap(), &fragment_indices[..fragments.len()]);
         }
-        Signature(result.into())
+        Signature(result.into(), None)
+    }
+
+    /// Returns whether or not this is a fragment of a threshold signature.
+    fn is_fragment(&self) -> bool {
+        match self.1 {
+            Some(_) => true,
+            None => false,
+        }
     }
 }
 

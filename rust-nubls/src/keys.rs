@@ -5,20 +5,23 @@ use crate::utils::{lambda_coeff, poly_eval};
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
 
+pub(crate) const SCALAR_BYTES_LENGTH: usize = 32;
+
 /// A `PublicKey` represents an Affine element of the G_1 group on the BLS12-381 curve.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct PublicKey(pub(crate) G1Affine);
 
 /// A `PrivateKey` represents a Scalar element within the order of the BLS12-381 curve.
+/// We have an `Option<Scalar>` field for a Fragment ID in the case of Threshold signatures.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub struct PrivateKey(pub(crate) Scalar);
+pub struct PrivateKey(pub(crate) Scalar, pub(crate) Option<Scalar>);
 
 impl PrivateKey {
     /// Generates a random private key and returns it.
     pub fn random() -> PrivateKey {
         let mut key_bytes = [0u8; 64];
         match getrandom::getrandom(&mut key_bytes) {
-            Ok(_) => return PrivateKey(Scalar::from_bytes_wide(&key_bytes)),
+            Ok(_) => return PrivateKey(Scalar::from_bytes_wide(&key_bytes), None),
             Err(err) => panic!("Error while generating a random key: {:?}", err),
         };
     }
@@ -39,15 +42,52 @@ impl PrivateKey {
         Signature::new(self, message_element)
     }
 
-    /// Serializes the `PrivateKey` to an array of 32 bytes.
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
+    /// Serializes the `PrivateKey` by filling a buffer passed as an argument.
+    /// If the buffer is not big enough, this method will panic.
+    ///
+    /// A `PrivateKey` can be serialized in two ways:
+    ///  1. 32 bytes -- This is the case when a `PrivateKey` is _not_ being
+    ///  used for a threshold signature.
+    ///
+    ///  2. 64 bytes -- This is the case when a `PrivateKey` _is_ being used
+    ///  for a threshold signature. This allows us to store its fragment
+    ///  ID for Shamir's Secret Sharing.
+    ///
+    /// Note: This serialization will probably change in the future.
+    /// See https://github.com/nucypher/NuBLS/issues/3
+    pub fn to_bytes(&self, buff: &mut [u8]) {
+        buff[0..32].copy_from_slice(&self.0.to_bytes()[..]);
+        if let Some(fragment_index) = self.1 {
+            buff[32..64].copy_from_slice(&fragment_index.to_bytes()[..]);
+        }
     }
 
-    /// Deserializes from a `&[u8; 32]` to a `PrivateKey`.
-    /// This will panic if the input is not valid.
-    pub fn from_bytes(bytes: &[u8; 32]) -> PrivateKey {
-        PrivateKey(Scalar::from_bytes(bytes).unwrap())
+    /// Deserializes from a `&[u8]` to a `PrivateKey`.
+    /// This will panic if the input is not canonical.
+    ///
+    /// A `PrivateKey` can be serialized in two ways:
+    ///  1. 32 bytes -- This is the case when a `PrivateKey` is _not_ being
+    ///  used for a threshold signature.
+    ///
+    ///  2. 64 bytes -- This is the case when a `PrivateKey` _is_ being used
+    ///  for a threshold signature. This allows us to store its fragment
+    ///  ID for Shamir's Secret Sharing.
+    ///
+    /// Note: This serialization will probably change in the future.
+    /// See https://github.com/nucypher/NuBLS/issues/3
+    pub fn from_bytes(bytes: &[u8]) -> PrivateKey {
+        let mut scalar_bytes = [0u8; 32];
+        let fragment_index: Option<Scalar>;
+        if bytes.len() == SCALAR_BYTES_LENGTH {
+            scalar_bytes.copy_from_slice(&bytes);
+            fragment_index = None;
+        } else {
+            let mut index_bytes = [0u8; 32];
+            scalar_bytes.copy_from_slice(&bytes[0..SCALAR_BYTES_LENGTH]);
+            index_bytes.copy_from_slice(&bytes[SCALAR_BYTES_LENGTH..64]);
+            fragment_index = Some(Scalar::from_bytes(&index_bytes).unwrap());
+        }
+        PrivateKey(Scalar::from_bytes(&scalar_bytes).unwrap(), fragment_index)
     }
 }
 
@@ -108,14 +148,15 @@ impl ThresholdKey for PrivateKey {
 
         // Then we evaluate the polynomial `n` times using Horner's method and
         // return the `collect`ed `Vector`.
-        // We calculate the fragment index by simply incrementing a Scalar
-        // starting at zero. This can be significantly improved, for more info
-        // see https://github.com/nucypher/NuBLS/issues/3.
-        let mut fragment_index = Scalar::zero();
+        // The index can be significantly improved, for more info see
+        // https://github.com/nucypher/NuBLS/issues/3.
         let mut fragments = Vec::<PrivateKey>::with_capacity(n);
         for _ in 0..n {
-            fragment_index += Scalar::one();
-            fragments.push(PrivateKey(poly_eval(&coeffs[..], &fragment_index)));
+            let fragment_index = PrivateKey::random().0;
+            fragments.push(PrivateKey(
+                poly_eval(&coeffs[..], &fragment_index),
+                Some(fragment_index),
+            ));
         }
         fragments
     }
@@ -130,23 +171,34 @@ impl ThresholdKey for PrivateKey {
     /// this will incorrectly recover the `PrivateKey` without warning.
     fn recover(fragments: &[PrivateKey]) -> PrivateKey {
         // First, we generate the fragment indices.
-        // This is done by simply incrementing a Scalar starting from one.
+        // We create a buffer to hold fragment indices of size 256 because
+        // our limit to fragments is 256.
         // This can be significantly improved, for more info see
         // https://github.com/nucypher/NuBLS/issues/3.
-        let mut index = Scalar::one();
-        let mut fragment_indices = Vec::<Scalar>::with_capacity(fragments.len());
-        for _ in 0..fragments.len() {
-            fragment_indices.push(index);
-            index += Scalar::one();
+        let mut fragment_indices = [Scalar::zero(); 256];
+        for i in 0..fragments.len() {
+            fragment_indices[i] = fragments[i].1.unwrap();
         }
 
         // Then we evaluate the Lagrange basis polynomials and return the
         // recovered `PrivateKey`.
+        // Note: we limit the `fragments_indices` slice to the length of the
+        // `fragments` slice.
         let mut result = Scalar::zero();
-        for (fragment, fragment_index) in fragments.iter().zip(fragment_indices.iter()) {
-            result += lambda_coeff(fragment_index, &fragment_indices[..]) * fragment.0;
+        for fragment in fragments.iter() {
+            result += lambda_coeff(&fragment.1.unwrap(), &fragment_indices[..fragments.len()])
+                * fragment.0;
         }
-        PrivateKey(result)
+        PrivateKey(result, None)
+    }
+
+    /// Returns whether or not this is a fragment of a key used for 
+    /// threshold signatures.
+    fn is_fragment(&self) -> bool {
+        match self.1 {
+            Some(_) => true,
+            None => false,
+        }
     }
 }
 
@@ -250,6 +302,63 @@ mod tests {
     }
 
     #[test]
+    fn test_key_serialization() {
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+
+        let mut a_bytes = [0u8; 32];
+        let mut frag_bytes = [0u8; 64];
+        priv_a.to_bytes(&mut a_bytes);
+        n_frags[0].to_bytes(&mut frag_bytes);
+
+        assert_eq!(a_bytes.len(), 32);
+        assert_eq!(frag_bytes.len(), 64);
+        assert_ne!(a_bytes[..32], frag_bytes[..32]);
+
+        assert_eq!(PrivateKey::from_bytes(&a_bytes), priv_a);
+        assert_eq!(PrivateKey::from_bytes(&frag_bytes), n_frags[0]);
+    }
+
+    #[test]
+    fn test_signature_serialization() {
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+
+        let rand = PrivateKey::random();
+        let msg = G2Affine::from(G2Affine::generator() * &rand.0);
+        let sig = priv_a.sign(&msg);
+        let frag_sig = n_frags[0].sign(&msg);
+
+        let mut sig_bytes = [0u8; 96];
+        let mut frag_sig_bytes = [0u8; 128];
+        sig.to_bytes(&mut sig_bytes);
+        frag_sig.to_bytes(&mut frag_sig_bytes);
+
+        assert_eq!(sig_bytes.len(), 96);
+        assert_eq!(frag_sig_bytes.len(), 128);
+        assert_ne!(sig_bytes[..96], frag_sig_bytes[..96]);
+
+        assert_eq!(Signature::from_bytes(&sig_bytes), sig);
+        assert_eq!(Signature::from_bytes(&frag_sig_bytes), frag_sig);
+    }
+
+    #[test]
+    fn test_is_fragment() {
+        // Testing `PrivateKey`
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+        assert_eq!(n_frags[0].is_fragment(), true);
+        assert_eq!(priv_a.is_fragment(), false);
+
+        // Testing `Signature`
+        let rand = PrivateKey::random();
+        let msg = G2Affine::from(G2Affine::generator() * &rand.0);
+        let sig = n_frags[0].sign(&msg);
+        assert_eq!(sig.is_fragment(), true);
+        assert_eq!(priv_a.sign(&msg).is_fragment(), false);
+    }
+
+    #[test]
     fn test_incomplete_key_recovery() {
         let priv_a = PrivateKey::random();
         let n_frags = priv_a.split(3, 5);
@@ -258,20 +367,6 @@ mod tests {
         let m_frags = &n_frags[0..2];
         let bad_recovery = PrivateKey::recover(&m_frags);
         assert_ne!(bad_recovery, priv_a);
-    }
-
-    // Ignoring this test for now because it fails.
-    // We need to store share indices with the fragments so that
-    // we can properly recover the fragment.
-    #[test]
-    #[ignore]
-    fn test_unordered_index_key_recovery() {
-        let priv_a = PrivateKey::random();
-        let n_frags = priv_a.split(3, 5);
-        let m_frags = &n_frags[2..5];
-
-        let recovered_a = PrivateKey::recover(&m_frags);
-        assert_eq!(recovered_a, priv_a);
     }
 
     #[test]
@@ -287,7 +382,7 @@ mod tests {
         // Get three signatures on the `msg` from each Signer
         let sig_1 = n_frags[0].sign(&msg);
         let sig_2 = n_frags[1].sign(&msg);
-        let sig_3 = n_frags[2].sign(&msg);
+        let sig_3 = n_frags[3].sign(&msg);
 
         // Place them into a vector and assemble the full signature
         let sig_frags = vec![sig_1, sig_2, sig_3];
@@ -298,6 +393,36 @@ mod tests {
         // two signatures are identical.
         let msg_sig = priv_a.sign(&msg);
         assert_eq!(msg_sig, full_sig);
+
+        // Check that the signature verifies
+        let pub_a = priv_a.public_key();
+        assert_eq!(pub_a.verify(&msg, &full_sig), VerificationResult::Valid);
+    }
+
+    #[test]
+    fn test_unordered_index_key_recovery() {
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+        let m_frags = &n_frags[2..5];
+
+        let recovered_a = PrivateKey::recover(&m_frags);
+        assert_eq!(recovered_a, priv_a);
+    }
+
+    #[test]
+    fn test_unordered_index_signature_assembly() {
+        let priv_a = PrivateKey::random();
+        let n_frags = priv_a.split(3, 5);
+
+        let rand = PrivateKey::random();
+        let msg = G2Affine::from(G2Affine::generator() * &rand.0);
+
+        let sig_1 = n_frags[0].sign(&msg);
+        let sig_2 = n_frags[1].sign(&msg);
+        let sig_3 = n_frags[3].sign(&msg);
+
+        let sig_frags = vec![sig_1, sig_2, sig_3];
+        let full_sig = Signature::assemble(&sig_frags[..]);
 
         // Check that the signature verifies
         let pub_a = priv_a.public_key();
