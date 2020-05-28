@@ -10,3 +10,6 @@ features = ["nightly", "endo"]
 
 [dependencies.getrandom]
 version = "0.1"
+
+[dependencies.sha2]
+version = "0.8.2"

@@ -21,7 +21,7 @@ pub enum VerificationResult {
 /// A `Signature` is an Affine element of the G_2 group on the BLS12-381 curve.
 /// We have an `Option<Scalar>` field for a Fragment ID in the case of Threshold signatures.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct Signature(G2Affine, Option<Scalar>);
+pub struct Signature(pub(crate) G2Affine, Option<Scalar>);
 
 impl Signature {
     /// Creates a `Signature` and returns it by signing the `message_element`

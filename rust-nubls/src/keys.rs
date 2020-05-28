@@ -1,5 +1,5 @@
 use crate::bls::{Signature, VerificationResult};
-use crate::traits::ThresholdKey;
+use crate::traits::{PRSKey, ThresholdKey};
 use crate::utils::{lambda_coeff, poly_eval};
 
 use bls12_381::{G1Affine, G2Affine, Scalar};
@@ -175,6 +175,7 @@ impl ThresholdKey for PrivateKey {
         // our limit to fragments is 256.
         // This can be significantly improved, for more info see
         // https://github.com/nucypher/NuBLS/issues/3.
+        // TODO: https://github.com/nucypher/NuBLS/issues/25
         let mut fragment_indices = [Scalar::zero(); 256];
         for i in 0..fragments.len() {
             fragment_indices[i] = fragments[i].1.unwrap();
@@ -199,6 +200,24 @@ impl ThresholdKey for PrivateKey {
             Some(_) => true,
             None => false,
         }
+    }
+}
+
+impl PRSKey for PrivateKey {
+    fn resigning_key(&self, bob_pubkey: &PublicKey) -> PrivateKey {
+        unimplemented!();
+    }
+
+    fn designated_key(&self) -> PrivateKey {
+        unimplemented!();
+    }
+
+    fn sign(&self, message_element: &G2Affine) -> Signature {
+        unimplemented!();
+    }
+
+    fn resign(&self, signature: &Signature) -> Signature {
+        unimplemented!();
     }
 }
 
