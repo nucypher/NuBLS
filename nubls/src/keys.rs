@@ -1,7 +1,7 @@
 use crate::bls::{InvalidSignature, Signature};
 use bls12_381::G2Affine;
 use nubls::{
-    PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub, ThresholdKey, VerificationResult,
+    PrivateKey as PrivateKeyStub, PublicKey as PublicKeyStub, PRSKey, ThresholdKey, VerificationResult,
 };
 
 use pyo3::prelude::*;
@@ -83,6 +83,24 @@ impl PrivateKey {
             self.inner.to_bytes(&mut buff);
             Ok(&PyBytes::new(py, &buff))
         }
+    }
+
+    pub fn resigning_key(&self, bob_pubkey: &PublicKey) -> PyResult<PrivateKey> {
+        Ok(PrivateKey {
+            inner: self.inner.resigning_key(&bob_pubkey.inner)
+        })
+    }
+
+    pub fn designated_key(&self, alice_pubkey: &PublicKey) -> PyResult<PrivateKey> {
+        Ok(PrivateKey {
+            inner: self.inner.designated_key(&alice_pubkey.inner)
+        })
+    }
+
+    pub fn resign(&self, signature: &Signature) -> PyResult<Signature> {
+        Ok(Signature {
+            inner: self.inner.resign(&signature.inner)
+        })
     }
 }
 
