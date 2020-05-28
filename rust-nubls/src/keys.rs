@@ -5,6 +5,8 @@ use crate::utils::{lambda_coeff, poly_eval};
 use bls12_381::{G1Affine, G2Affine, Scalar};
 use getrandom;
 
+use sha2::{Digest, Sha512};
+
 pub(crate) const SCALAR_BYTES_LENGTH: usize = 32;
 
 /// A `PublicKey` represents an Affine element of the G_1 group on the BLS12-381 curve.
@@ -204,20 +206,25 @@ impl ThresholdKey for PrivateKey {
 }
 
 impl PRSKey for PrivateKey {
+    /// Calculates $\phi_{B \rightarrow A}$ as $\frac{a}{\phi_B}$
     fn resigning_key(&self, bob_pubkey: &PublicKey) -> PrivateKey {
-        unimplemented!();
+        let phi_b = self.designated_key(&bob_pubkey).0;
+        PrivateKey(self.0 * (phi_b.invert().unwrap()), None)
     }
 
-    fn designated_key(&self) -> PrivateKey {
-        unimplemented!();
+    /// Calculate $\phi_B$ as a Diffie-Hellman between Alice and Bob.
+    fn designated_key(&self, alice_pubkey: &PublicKey) -> PrivateKey {
+        let dh = Sha512::digest(&G1Affine::from(alice_pubkey.0 * &self.0).to_uncompressed());
+        let mut scalar_bytes = [0u8; 64];
+        scalar_bytes.copy_from_slice(&dh.as_slice());
+        PrivateKey(Scalar::from_bytes_wide(&scalar_bytes), None)
     }
 
-    fn sign(&self, message_element: &G2Affine) -> Signature {
-        unimplemented!();
-    }
-
+    /// Re-Signs a `Signature` from $\sigma_{\phi_B}$ to $\sigma_A$.
+    /// This is done by multiplying the `Signature` by the re-signing key:
+    /// $\sigma_A = \phi_{B \rightarrow A} \cdot \sigma_{\phi_B}$
     fn resign(&self, signature: &Signature) -> Signature {
-        unimplemented!();
+        Signature::new(&self, &signature.0)
     }
 }
 
@@ -471,5 +478,37 @@ mod tests {
         // two signatures are identical.
         let msg_sig = priv_a.sign(&msg);
         assert_ne!(msg_sig, bad_sig);
+    }
+
+    #[test]
+    fn test_proxy_re_signature() {
+        let priv_alice = PrivateKey::random();
+        let pub_alice = priv_alice.public_key();
+
+        let priv_bob = PrivateKey::random();
+        let pub_bob = priv_bob.public_key();
+
+        // Generate a random message in G_2 to sign
+        let rand = PrivateKey::random();
+        let msg = G2Affine::from(G2Affine::generator() * &rand.0);
+
+        // Alice grants re-signing capabilities to Bob by generating a
+        // resigning key that transforms signatures from Bob's designated key
+        // to Alice's key.
+        let rekey_ab = priv_alice.resigning_key(&pub_bob);
+
+        // Bob now signs with his designated key for Alice.
+        // Note: this is not a signature under Bob's key. It's a signature
+        // under a "designated key" that is specific for re-signing to Alice.
+        let sig_b = priv_bob.designated_key(&pub_alice).sign(&msg);
+        assert_ne!(sig_b, priv_bob.sign(&msg));
+        assert_eq!(pub_bob.verify(&msg, &sig_b), VerificationResult::Invalid);
+
+        // We re-sign the signature to Alice's key with the re-signing key.
+        // Note: this is the exact same signature that Alice would create
+        // had she made the signature herself.
+        let sig_a = rekey_ab.resign(&sig_b);
+        assert_eq!(sig_a, priv_alice.sign(&msg));
+        assert_eq!(pub_alice.verify(&msg, &sig_a), VerificationResult::Valid);
     }
 }
