@@ -1,4 +1,7 @@
 # NuBLS
+![Crates.io](https://img.shields.io/crates/l/nubls)
+![Discord](https://img.shields.io/discord/411401661714792449)
+
 NuBLS is NuCypher's BLS signature library that implements threshold protocols
 like threshold signatures and a Proxy Re-Signature (PRS) algorithm designed
 by NuCypher called Penumbral.
@@ -7,18 +10,23 @@ The NuBLS library offers bindings to Python from a rust backend, see below for
 details.
 
 ## Rust
+![Crates.io](https://img.shields.io/crates/v/nubls)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/nucypher/nubls/rust)
+
 The core of NuBLS is written in Rust, and is accessible here - https://github.com/nucypher/NuBLS/tree/master/rust-nubls
 
 ## Python
+![PyPI](https://img.shields.io/pypi/v/pynubls)
+
 The Python bindings are also written in Rust using the PyO3 library to ensure
 safety. This crate is accessible here - https://github.com/nucypher/NuBLS/tree/master/nubls/src
 
 ### Installation
 You can install NuBLS from pip with: `pip install pynubls`. Alternatively, see
-the build instructions below to 
+the build instructions below.
 
-### Building
-To build `nubls` for Python, create a virtual environment and install maturin:
+### Building PyNuBLS
+To build `pynubls` for Python, create a virtual environment and install maturin:
 `pip install maturin`
 
 Then build the package with:
@@ -29,7 +37,7 @@ To build and install the package into your virtual environment use:
 
 ### Usage
 The API for the Python wrapper closely resembles that of the Rust API. After
-building and installing the development version, you can call it in Python with:
+installing via pip or building the development version, you can call it in Python with:
 ```python
 from pynubls import PrivateKey, PublicKey, hash_message, InvalidSignature
 
@@ -65,4 +73,5 @@ alice_priv.public_key().verify(hash_message(b'Penumbral!'), resigned_sig)
 As this library is a work-in-progress, there are some missing API details.
 One of these is a rust-native hash-to-curve implementation. As such, it's not
 presently possible to hash messages natively with this library, and another
-library must be used.
+library must be used. To get around this, `pynubls` uses the `py-ecc` library
+for hashing messages to the curve.
