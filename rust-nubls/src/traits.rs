@@ -38,7 +38,7 @@ pub trait ThresholdSignature: Sized {
     fn is_fragment(&self) -> bool;
 }
 
-/// A trait that describes the UNNAMED Proxy Re-Signature protocol.
+/// A trait that describes the Penumbral Proxy Re-Signature protocol.
 /// Given a Re-Signature key, a BLS signature can be re-signed from Bob's
 /// key to Alice's key.
 pub trait PRSKey: Sized {
