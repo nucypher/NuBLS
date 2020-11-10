@@ -13,18 +13,25 @@ The core of NuBLS is written in Rust, and is accessible here - https://github.co
 The Python bindings are also written in Rust using the PyO3 library to ensure
 safety. This crate is accessible here - https://github.com/nucypher/NuBLS/tree/master/nubls/src
 
+### Installation
+You can install NuBLS from pip with: `pip install pynubls`. Alternatively, see
+the build instructions below to 
+
 ### Building
 To build `nubls` for Python, create a virtual environment and install maturin:
 `pip install maturin`
 
-Then build and install the development version with:
-`maturin build` and `maturin develop`
+Then build the package with:
+`maturin build`
+
+To build and install the package into your virtual environment use:
+`maturin develop`
 
 ### Usage
 The API for the Python wrapper closely resembles that of the Rust API. After
 building and installing the development version, you can call it in Python with:
 ```python
-from nubls import PrivateKey, PublicKey, hash_message, InvalidSignature
+from pynubls import PrivateKey, PublicKey, hash_message, InvalidSignature
 
 priv_key = PrivateKey.random()
 pub_key = priv_key.public_key()
@@ -39,7 +46,7 @@ recovered_key = PrivateKey.recover(key_frags[:3])
 # Signing
 sig = priv_key.sign(hash_message(b'NuBLS!'))
 try:
-    pub_key.verify(b'NuBLS!', sig)
+    pub_key.verify(hash_message(b'NuBLS!'), sig)
 except InvalidSignature:
     # Raises `InvalidSignature` when the signature is invalid.
     print("The signature is invalid.")

@@ -1,4 +1,4 @@
-from nubls_wrapper import *
+from pynubls import *
 
 def hash_message(message: bytes, DST: bytes = None) -> bytes:
     from hashlib import sha256

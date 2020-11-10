@@ -1,18 +1,19 @@
 [package]
-name = "nubls-wrapper"
+name = "pynubls"
 version = "0.1.0"
-authors = ["tuxxy <me@johnpacific.com>"]
+authors = ["NuCypher"]
 edition = "2018"
 
 [package.metadata.maturin]
-requires-dist = ["py_ecc==4.0.0"]
+requires-dist = ["py_ecc==5.0.0"]
 
 [lib]
-name = "nubls_wrapper"
+name = "pynubls"
 crate-type = ["cdylib"]
 
 [dependencies.nubls]
 path = "../rust-nubls/"
+version = "0.1.0"
 
 [dependencies.bls12_381]
 version = "0.3.1"
