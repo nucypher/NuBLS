@@ -13,12 +13,11 @@ crate-type = ["cdylib"]
 
 [dependencies.nubls]
 path = "../rust-nubls/"
-version = "0.1.0"
 
 [dependencies.bls12_381]
-version = "0.1.1"
+version = "0.3.1"
 features = ["nightly", "endo"]
 
 [dependencies.pyo3]
-version = "0.10.0"
+version = "0.12.3"
 features = ["extension-module"]

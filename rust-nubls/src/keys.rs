@@ -223,6 +223,8 @@ impl PRSKey for PrivateKey {
     /// Re-Signs a `Signature` from $\sigma_{\phi_B}$ to $\sigma_A$.
     /// This is done by multiplying the `Signature` by the re-signing key:
     /// $\sigma_A = \phi_{B \rightarrow A} \cdot \sigma_{\phi_B}$
+    ///
+    /// TODO: Validate signature before re-signing.
     fn resign(&self, signature: &Signature) -> Signature {
         Signature::new(&self, &signature.0)
     }

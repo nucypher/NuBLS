@@ -1,11 +1,11 @@
 use nubls::{Signature as SignatureStub, ThresholdSignature};
 
 use pyo3::create_exception;
-use pyo3::exceptions::Exception;
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyType};
 
-create_exception!(nubls_wrapper, InvalidSignature, Exception);
+create_exception!(nubls_wrapper, InvalidSignature, PyException);
 
 #[pyclass]
 pub struct Signature {
